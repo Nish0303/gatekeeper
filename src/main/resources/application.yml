@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/gatekeeper
+    username: gatekeeper
+    password: gatekeeper
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+gatekeeper:
+  # Dev-only default. Set GATEKEEPER_JWT_SECRET (32+ bytes) in any real deployment.
+  jwt-secret: "${GATEKEEPER_JWT_SECRET:this-is-a-dev-secret-change-me-please-make-it-32-bytes+}"
+  backend-url: "${GATEKEEPER_BACKEND_URL:http://localhost:8081}"

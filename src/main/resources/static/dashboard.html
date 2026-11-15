@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GateKeeper Dashboard</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f1117; color: #e5e7eb; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #9ca3af; font-size: 13px; margin-bottom: 20px; }
+  select, button {
+    background: #1a1d27; color: #e5e7eb; border: 1px solid #2d3140;
+    padding: 8px 12px; border-radius: 6px; font-size: 14px; margin-right: 8px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: #23273a; }
+  .stats { display: flex; gap: 16px; margin: 20px 0; }
+  .card {
+    background: #1a1d27; border: 1px solid #2d3140; border-radius: 8px;
+    padding: 16px; flex: 1;
+  }
+  .card .label { font-size: 12px; color: #9ca3af; text-transform: uppercase; }
+  .card .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
+  .ok { color: #4ade80; }
+  .warn { color: #f87171; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #2d3140; }
+  th { color: #9ca3af; font-weight: 500; }
+  .status-200 { color: #4ade80; }
+  .status-401, .status-429 { color: #f87171; }
+  .bar-track { background: #2d3140; border-radius: 4px; overflow: hidden; width: 100px; height: 8px; }
+  .bar-fill { background: #60a5fa; height: 100%; }
+  .empty { color: #6b7280; padding: 40px; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>GateKeeper Usage Dashboard</h1>
+<div class="sub">Per-client request logs, latency, and status codes</div>
+
+<select id="keySelect"><option value="">Loading API keys…</option></select>
+<button onclick="loadLogs()">Refresh</button>
+
+<div class="stats" id="stats" style="display:none">
+  <div class="card"><div class="label">Total Requests</div><div class="value" id="statTotal">–</div></div>
+  <div class="card"><div class="label">Success Rate</div><div class="value ok" id="statSuccess">–</div></div>
+  <div class="card"><div class="label">Rate Limited</div><div class="value warn" id="statLimited">–</div></div>
+  <div class="card"><div class="label">Avg Latency</div><div class="value" id="statLatency">–</div></div>
+</div>
+
+<table id="logsTable" style="display:none">
+  <thead>
+    <tr><th>Path</th><th>Status</th><th>Latency</th><th></th><th>Timestamp</th></tr>
+  </thead>
+  <tbody id="logsBody"></tbody>
+</table>
+
+<div class="empty" id="emptyMsg">Select an API key to view its usage.</div>
+
+<script>
+async function loadKeys() {
+  const res = await fetch('/api/keys');
+  const keys = await res.json();
+  const select = document.getElementById('keySelect');
+  select.innerHTML = keys.length
+    ? keys.map(k => `<option value="${k.id}">${k.owner} (id ${k.id})</option>`).join('')
+    : '<option value="">No API keys found</option>';
+  if (keys.length) loadLogs();
+}
+
+async function loadLogs() {
+  const apiKeyId = document.getElementById('keySelect').value;
+  if (!apiKeyId) return;
+
+  const res = await fetch(`/api/logs?apiKeyId=${apiKeyId}`);
+  const logs = await res.json();
+
+  const table = document.getElementById('logsTable');
+  const statsBox = document.getElementById('stats');
+  const empty = document.getElementById('emptyMsg');
+
+  if (!logs.length) {
+    table.style.display = 'none';
+    statsBox.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = 'No requests logged yet for this key.';
+    return;
+  }
+
+  empty.style.display = 'none';
+  table.style.display = 'table';
+  statsBox.style.display = 'flex';
+
+  const total = logs.length;
+  const successCount = logs.filter(l => l.statusCode >= 200 && l.statusCode < 300).length;
+  const limitedCount = logs.filter(l => l.statusCode === 429).length;
+  const avgLatency = Math.round(logs.reduce((sum, l) => sum + l.latencyMs, 0) / total);
+  const maxLatency = Math.max(...logs.map(l => l.latencyMs));
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statSuccess').textContent = Math.round((successCount / total) * 100) + '%';
+  document.getElementById('statLimited').textContent = limitedCount;
+  document.getElementById('statLatency').textContent = avgLatency + ' ms';
+
+  const body = document.getElementById('logsBody');
+  body.innerHTML = logs.map(l => {
+    const barWidth = maxLatency > 0 ? Math.max(4, (l.latencyMs / maxLatency) * 100) : 0;
+    const time = new Date(l.timestamp).toLocaleTimeString();
+    return `
+      <tr>
+        <td>${l.path}</td>
+        <td class="status-${l.statusCode}">${l.statusCode}</td>
+        <td>${l.latencyMs} ms</td>
+        <td><div class="bar-track"><div class="bar-fill" style="width:${barWidth}%"></div></div></td>
+        <td>${time}</td>
+      </tr>`;
+  }).join('');
+}
+
+loadKeys();
+</script>
+</body>
+</html>

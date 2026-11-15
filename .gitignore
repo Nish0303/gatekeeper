@@ -1,0 +1,23 @@
+# Build output
+target/
+build/
+*.class
+*.jar
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Python (load test)
+venv/
+.venv/
+__pycache__/
+
+# Secrets
+.env
+.env.*
+
+# Redis local dump
+dump.rdb
